@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -31,16 +33,17 @@ func start(fs *FileServer) {
 }
 
 func (fs *FileServer) readLoop(conn net.Conn) {
-	buffer := make([]byte, 2048)
+	buffer := new(bytes.Buffer)
 	for {
-		n, err := conn.Read(buffer)
+		var size int64
+		binary.Read(conn, binary.LittleEndian, &size)
+		n, err := io.CopyN(buffer, conn, size)
 
 		if err != nil {
 			log.Fatal("Error -> ", err)
 		}
 
-		file := buffer[:n]
-		fmt.Println(file)
+		fmt.Println(buffer.Bytes())
 		fmt.Printf("%d bytes of data received over the network\n", n)
 	}
 }
@@ -58,7 +61,9 @@ func sendFile(size int) error {
 		log.Fatal("Error -> ", err)
 	}
 
-	n, err := conn.Write(file)
+	binary.Write(conn, binary.LittleEndian, int64(size))
+
+	n, err := io.CopyN(conn, bytes.NewReader(file), int64(size))
 	if err != nil {
 		log.Fatal("Error -> ", err)
 	}
